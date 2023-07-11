@@ -173,6 +173,10 @@
   #include "../usermods/boblight/boblight.h"
 #endif
 
+#ifdef USERMOD_CAN_BUS
+  #include "../usermods/CAN_bus/usermod_can_bus.h"
+#endif
+
 #if defined(WLED_USE_SD_MMC) || defined(WLED_USE_SD_SPI)
 // This include of SD.h and SD_MMC.h must happen here, else they won't be
 // resolved correctly (when included in mod's header only)
@@ -344,6 +348,10 @@ void registerUsermods()
 
   #ifdef USERMOD_BOBLIGHT
   usermods.add(new BobLightUsermod());
+  #endif
+
+  #ifdef USERMOD_CAN_BUS
+  usermods.add(new CanBusUsermod());
   #endif
 
   #ifdef SD_ADAPTER
