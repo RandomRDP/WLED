@@ -46,7 +46,9 @@ void WLED::loop()
   handleIR();        // 2nd call to function needed for ESP32 to return valid results -- should be good for ESP8266, too
   #endif
   handleConnection();
+  handleRemote();
   handleSerial();
+  handleImprovWifiScan();
   handleNotifications();
   handleTransitions();
 #ifdef WLED_ENABLE_DMX
@@ -72,13 +74,6 @@ void WLED::loop()
   #ifndef WLED_DISABLE_ALEXA
   handleAlexa();
   #endif
-
-  yield();
-
-  if (doSerializeConfig) serializeConfig();
-
-  if (doReboot && !doInitBusses) // if busses have to be inited & saved, wait until next iteration
-    reset();
 
   if (doCloseFile) {
     closeFile();
@@ -145,7 +140,7 @@ void WLED::loop()
   }
 
   // 15min PIN time-out
-  if (strlen(settingsPIN)>0 && millis() - lastEditTime > 900000) {
+  if (strlen(settingsPIN)>0 && correctPIN && millis() - lastEditTime > PIN_TIMEOUT) {
     correctPIN = false;
     createEditHandler(false);
   }
@@ -169,13 +164,14 @@ void WLED::loop()
     strip.finalizeInit(); // also loads default ledmap if present
     if (aligned) strip.makeAutoSegments();
     else strip.fixInvalidSegments();
-    yield();
-    serializeConfig();
+    doSerializeConfig = true;
   }
   if (loadLedmap >= 0) {
     if (!strip.deserializeMap(loadLedmap) && strip.isMatrix && loadLedmap == 0) strip.setUpMatrix();
     loadLedmap = -1;
   }
+  yield();
+  if (doSerializeConfig) serializeConfig();
 
   yield();
   handleWs();
@@ -229,6 +225,9 @@ void WLED::loop()
     ESP.wdtFeed();
   #endif
 #endif
+
+  if (doReboot && (!doInitBusses || !doSerializeConfig)) // if busses have to be inited & saved, wait until next iteration
+    reset();
 }
 
 void WLED::enableWatchdog() {
@@ -648,7 +647,6 @@ void WLED::initConnection()
   ws.onEvent(wsEvent);
   #endif
 
-
   WiFi.disconnect(true);        // close old connections
 #ifdef ESP8266
   WiFi.setPhyMode(WIFI_PHY_MODE_11N);
@@ -847,7 +845,7 @@ void WLED::handleConnection()
     if (improvActive) {
       if (improvError == 3) sendImprovStateResponse(0x00, true);
       sendImprovStateResponse(0x04);
-      if (improvActive > 1) sendImprovRPCResponse(0x01);
+      if (improvActive > 1) sendImprovIPRPCResult(ImprovRPCType::Command_Wifi);
     }
     initInterfaces();
     userConnected();
